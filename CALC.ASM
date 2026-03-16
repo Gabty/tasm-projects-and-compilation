@@ -94,7 +94,6 @@ compound PROC
     mov dx, offset principal_qt ; print
     int 21h
 
-    
     mov ah, 0Ah; ask for input
     mov dx, offset pbuf ; place the length at pbuf+1 and chars +2
     int 21h
@@ -232,6 +231,11 @@ exponential_growth:
     mul bx
     mov bx, 10000
     call divider
+
+    mov ax, word ptr nm
+    mov dx, word ptr nm+2
+    mov bx, 100
+    call multiplier
 
     call printAXDX
     call nl
@@ -388,31 +392,27 @@ multiplier PROC
     ;   DX:AX = 32-bit value
     ;   BX    = multiplier
     ; output:
-    ;   DX:AX = result (lower 32 bits)
+    ;   DX:AX = result (low 32 bits)
 
+    push ax
+    push dx
     push cx
-    push bp
 
-    push ax          ; save low word
+    mov cx,ax        ; save low word
 
     mov ax,dx        ; high * BX
-    mul bx
-    mov bp,ax        ; save partial
-    mov cx,dx
+    mul bx           ; DX:AX
+    mov dx,ax        ; high contribution
+    mov ax,cx        ; restore low
 
-    pop ax           ; restore low
-    mul bx           ; low * BX
+    mul bx           ; low * BX → DX:AX
 
-    add dx,bp        ; combine
-    adc cx,0
+    add dx,dx        ; combine high parts
+    adc dx,0
 
-    mov bp,ax
-    mov ax,dx
-    mov dx,cx
-    mov ax,bp
-
-    pop bp
     pop cx
+    pop dx
+    pop ax
     ret
 multiplier ENDP
 
