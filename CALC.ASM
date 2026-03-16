@@ -2,14 +2,16 @@
 .stack 100h
 .data
 head db "Interest Calculator",13,10, "$"
-options db "1. Simple Interest",13,10,"2. Compound Interest",13,10,"3. Exit$"
+options db "1. Future Value of Simple Interest",13,10,"2. Future Value of Compounding Interest",13,10,"3. Exit$"
 question db "Options: $"
 opt1 db "Yes its 1. Simple Interest$"
-opt2 db "Compounding Interest with monthly contribution$"
+opt2 db "Future Value of Compounding Interest$"
 principal_qt db "What is the principal: $"
 rate_qt db "What is the annual interest rate (percentage): $"
 term_qt db "What is the term (year): $"
 compound_qt db "What is the compound frequency: $"
+
+compound_cmp db "Future Value: $"
 
 ; buffer for compound
 ;12 maximum number allowed ;0 current length ;12 space reservation
@@ -95,15 +97,6 @@ compound PROC
     mov ah, 0Ah; ask for input
     mov dx, offset pbuf ; place the length at pbuf+1 and chars +2
     int 21h
-    ; Monthly
-    call nl
-    mov ah, 09h
-    mov dx, offset monthly_qt; print
-    int 21h
-    
-    mov ah, 0Ah
-    mov dx, offset mbuf
-    int 21h
     call nl
     ; RATE
     mov ah, 09h 
@@ -114,79 +107,72 @@ compound PROC
     mov dx, offset rbuf
     int 21h
     call nl
+    ; Term
     mov ah, 09h
     mov dx, offset term_qt ; print
     int 21h
-    ; Term
+    
     mov ah, 0Ah
     mov dx, offset tbuf
     int 21h
+    ; Compount
     call nl
     mov ah, 09h 
     mov dx, offset compound_qt ; print
     int 21h
-    ; Compount
+    
     mov ah, 0Ah
     mov dx, offset cbuf
     int 21h
 
     call nl
     ; storing the value to var at .data
+    ; principal
     mov cl, pbuf+1
     lea si, pbuf+2 ; load effective address
     
     call asciiToDigit ; convert ascii to digit
     mov word ptr nm, ax ; store low bit at ax
     mov word ptr nm+2,dx ; high bit at dx
-
-    mov cl, mbuf+1
-    lea si, mbuf+2
-    
-    call asciiToDigit
-    mov word ptr nm+4, ax
-    mov word ptr nm+6, dx
-
+    ; rate
     mov cl, rbuf+1
     lea si, rbuf+2
     
     call asciiToDigit
-    mov word ptr nm+8, ax
-    mov word ptr nm+10, dx
-
+    mov word ptr nm+4, ax
+    mov word ptr nm+6, dx
+    ; term (year)
     mov cl, tbuf+1
     lea si, tbuf+2
+    
+    call asciiToDigit
+    mov word ptr nm+8, ax
+    mov word ptr nm+10, dx
+    ; compound frequency
+    mov cl, cbuf+1
+    lea si, cbuf+2
     
     call asciiToDigit
     mov word ptr nm+12, ax
     mov word ptr nm+14, dx
 
-    mov cl, cbuf+1
-    lea si, cbuf+2
-    
-    call asciiToDigit
-    mov word ptr nm+16, ax
-    mov word ptr nm+18, dx
-
     ; get term * compounding
-    mov ax, word ptr nm+12 ; ax = time
-    mov dx, word ptr nm+14 ; ax = time
-    mov bx, word ptr nm+16
+    mov ax, word ptr nm+8 ; ax = time
+    mov dx, word ptr nm+10 ; ax = time
+    mov bx, word ptr nm+12
     call multiplier
     ; store the output
 
     mov word ptr rt, ax ; store ct lower bit
     mov word ptr rt+2, dx ; store ct higher bit
 
-    call printAXDX
-    call nl
-
     ; P (1+i/c) ^ct
-    mov ax, word ptr nm+8 ; get rate
-    mov dx, word ptr nm+10 ; get rate
+    mov ax, word ptr nm+4 ; get rate
+    mov dx, word ptr nm+6 ; get rate
     mov bx, 100
     call multiplier
 
-    mov bx, word ptr nm+16
+    mov bx, word ptr nm+12
     call divider
 
     mov bx, 10000  ;this is 1 in formula but scaled by 10000
@@ -221,10 +207,10 @@ exponential_growth:
     mov word ptr rt+4, ax; store (1+i/c)^ct for other use lower bit
     mov word ptr rt+6, dx; store (1+i/c)^ct for other use higher bit
 
-    mov bx, word ptr nm
-    call multiplier
+    mov bx, word ptr nm 
+    call multiplier; multiply it by principal
     mov bx, 10000
-    call divider
+    call divider ; remove the scale
 
     call printAXDX
     call nl
