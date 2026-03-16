@@ -7,7 +7,6 @@ question db "Options: $"
 opt1 db "Yes its 1. Simple Interest$"
 opt2 db "Compounding Interest with monthly contribution$"
 principal_qt db "What is the principal: $"
-monthly_qt db "What is the monthly contribution: $"
 rate_qt db "What is the annual interest rate (percentage): $"
 term_qt db "What is the term (year): $"
 compound_qt db "What is the compound frequency: $"
@@ -15,12 +14,11 @@ compound_qt db "What is the compound frequency: $"
 ; buffer for compound
 ;12 maximum number allowed ;0 current length ;12 space reservation
 pbuf db 12,0,12 dup(?)
-mbuf db 12,0,12 dup(?)
 rbuf db 12,0,12 dup(?)
 tbuf db 12,0,12 dup(?)
 cbuf db 12,0,12 dup(?)
 ; numeric
-nm dd ?, ?, ?, ?, ? ; p,m,r,t,c
+nm dd ?, ?, ?, ? ; p,m,r,t,c
 rt dd ?,?,? ; ct,
 .code
 begin:
@@ -171,49 +169,45 @@ compound PROC
 
     ; get term * compounding
     mov ax, word ptr nm+12 ; ax = time
-    mul word ptr nm+16 ; T x C
-
+    mov dx, word ptr nm+14 ; ax = time
+    mov bx, word ptr nm+16
+    call multiplier
     ; store the output
 
     mov word ptr rt, ax ; store ct lower bit
     mov word ptr rt+2, dx ; store ct higher bit
 
+    call printAXDX
+    call nl
+
     ; P (1+i/c) ^ct
     mov ax, word ptr nm+8 ; get rate
+    mov dx, word ptr nm+10 ; get rate
     mov bx, 100
-    mul bx ; multiply by 9999
-    xor dx,dx
-    div word ptr nm+16
+    call multiplier
 
+    mov bx, word ptr nm+16
+    call divider
 
-    add ax, 10000 ; this is 1 in formula but scaled by 10000
+    mov bx, 10000  ;this is 1 in formula but scaled by 10000
+    mov cx, 0 ; 0 as bx is only 10000
+    call adder; adder uses cx:bx and
 
-    mov bx,ax ; current
-    mov ax,10000 ; base
-    xor dx,dx
+    mov bx,ax ; store the current result to bx to used in multiplier
+
+    mov cx, bx ; store a copy of current result
+    mov ax,10000 ; new base
 
     mov si, word ptr rt ; get (C)(T)
     mov di, word ptr rt+2
 
 exponential_growth:
-
     ; 32-bit multiply
-    mul bx                ; DX:AX = result * base
+    mov bx, cx
+    call multiplier ; base * result
 
-    ; ----- safe 32-bit / 10000 -----
-    push ax               ; save low
-
-    mov ax,dx             ; divide high word
-    xor dx,dx
-    mov cx,10000
-    div cx                ; AX = high quotient, DX = remainder
-
-    mov bp,ax             ; store high quotient
-    pop ax                ; restore low
-
-    div cx                ; divide low word with remainder
-
-    mov dx,bp             ; rebuild DX:AX quotient
+    mov bx,10000
+    call divider ; (base*result) / 10000 returns a new result
     ; --------------------------------
 
     sub si,1
@@ -228,14 +222,9 @@ exponential_growth:
     mov word ptr rt+6, dx; store (1+i/c)^ct for other use higher bit
 
     mov bx, word ptr nm
-    mul bx
+    call multiplier
     mov bx, 10000
     call divider
-
-    mov ax, word ptr nm
-    mov dx, word ptr nm+2
-    mov bx, 100
-    call multiplier
 
     call printAXDX
     call nl
@@ -394,27 +383,38 @@ multiplier PROC
     ; output:
     ;   DX:AX = result (low 32 bits)
 
-    push ax
-    push dx
     push cx
+    push si
 
-    mov cx,ax        ; save low word
+    mov si,ax        ; save low word
 
-    mov ax,dx        ; high * BX
-    mul bx           ; DX:AX
-    mov dx,ax        ; high contribution
-    mov ax,cx        ; restore low
+    mov ax,dx
+    mul bx           ; high * BX
+    mov cx,ax        ; partial high
 
+    mov ax,si
     mul bx           ; low * BX → DX:AX
 
-    add dx,dx        ; combine high parts
-    adc dx,0
+    add dx,cx        ; combine
 
+    pop si
     pop cx
-    pop dx
-    pop ax
     ret
 multiplier ENDP
+
+adder PROC
+    ; input:
+    ;   DX:AX = first 32-bit value
+    ;   CX:BX = second 32-bit value
+    ; output:
+    ;   DX:AX = result
+
+    add ax,bx
+    adc dx,cx
+
+    ret
+adder ENDP
+
 
 
 end begin
