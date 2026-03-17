@@ -1,3 +1,4 @@
+; A semi 32 bit calculator that runs in assembly
 .model small
 .stack 100h
 .data
@@ -15,12 +16,13 @@ compound_qt db "What is the compound frequency: $"
 answer_cmp db "Future Value: $"
 
 ; buffer for compound
-;12 maximum number allowed ;0 current length ;12 space reservation
-pbuf db 12,0,12 dup(?)
-rbuf db 12,0,12 dup(?)
-tbuf db 12,0,12 dup(?)
-cbuf db 12,0,12 dup(?)
-; numeric
+; maximum number allowed ;current length ; space reservation
+pbuf db 12,0,13 dup(?) ; up to 13 possible
+rbuf db 2,0,3 dup(?) ; must be 2 length
+tbuf db 3,0,4 dup(?) ; must be 3 length
+cbuf db 3,0,4 dup(?) ; must be 3 length
+; possible length was set to prevent overloading
+; numeric holder
 nm dd ?, ?, ?, ? ; p,r,t,c
 rt dd ?,?,? ; ct
 .code
@@ -100,7 +102,7 @@ simple PROC
     mov dx, offset rate_qt
     int 21h
     mov ah, 0Ah
-    mov dx, offset pbuf
+    mov dx, offset rbuf
     int 21h
     call nl
     ; TIME (YEAR)
@@ -108,7 +110,7 @@ simple PROC
     mov dx, offset term_qt
     int 21h
     mov ah, 0Ah
-    mov dx, offset pbuf
+    mov dx, offset tbuf
     int 21h
 
     call nl
