@@ -4,14 +4,15 @@
 head db "Interest Calculator",13,10, "$"
 options db "1. Future Value of Simple Interest",13,10,"2. Future Value of Compounding Interest",13,10,"3. Exit$"
 question db "Options: $"
-opt1 db "Yes its 1. Simple Interest$"
+opt1 db "Future Value of Simple Interest$"
 opt2 db "Future Value of Compounding Interest$"
+opt3 db "Exiting...$"
 principal_qt db "What is the principal: $"
 rate_qt db "What is the annual interest rate (percentage): $"
 term_qt db "What is the term (year): $"
 compound_qt db "What is the compound frequency: $"
 
-compound_cmp db "Future Value: $"
+answer_cmp db "Future Value: $"
 
 ; buffer for compound
 ;12 maximum number allowed ;0 current length ;12 space reservation
@@ -20,8 +21,8 @@ rbuf db 12,0,12 dup(?)
 tbuf db 12,0,12 dup(?)
 cbuf db 12,0,12 dup(?)
 ; numeric
-nm dd ?, ?, ?, ? ; p,m,r,t,c
-rt dd ?,?,? ; ct,
+nm dd ?, ?, ?, ? ; p,r,t,c
+rt dd ?,?,? ; ct
 .code
 begin:
     mov ax, @data
@@ -66,6 +67,10 @@ nl PROC ; create new line
 nl ENDP
 
 exitapp PROC
+    call nl
+    mov ah, 09h
+    mov dx, offset opt3
+    int 21h
     mov ah, 4ch
     int 21h
     ret
@@ -73,21 +78,56 @@ exitapp ENDP
 
 simple PROC
     call nl
+    call liner ; liner ============
+    call nl
     mov ah, 09h
-    mov dx, offset opt1
+    mov dx, offset opt1 ; HEADER
+    int 21h
+    call nl ; NEW LINE
+    call liner ; liner ============
+    call nl
+
+    ;PRINCIPAL
+    mov ah, 09h
+    mov dx, offset principal_qt
+    int 21h
+    mov ah, 0Ah
+    mov dx, offset pbuf
+    int 21h
+    call nl
+    ;RATE
+    mov ah, 09h
+    mov dx, offset rate_qt
+    int 21h
+    mov ah, 0Ah
+    mov dx, offset pbuf
+    int 21h
+    call nl
+    ; TIME (YEAR)
+    mov ah, 09h
+    mov dx, offset term_qt
+    int 21h
+    mov ah, 0Ah
+    mov dx, offset pbuf
     int 21h
 
     call nl
+
+    ;inserting
 
     jmp mainloop
 simple ENDP
 
 compound PROC
     call nl
+    call liner ; liner ============
+    call nl
+    mov cx, 50
     mov ah, 09h
     mov dx, offset opt2
     int 21h
-
+    call nl
+    call liner ; liner ============
     call nl
     ; PRINCIPAL
     mov ah, 09h
@@ -212,7 +252,24 @@ exponential_growth:
     mov bx, 10000
     call divider ; remove the scale
 
+    mov word ptr rt+4, ax 
+    mov word ptr rt+6, dx ; store it first so printing cliner and answer_cmp can use it
+
+    call nl
+    call liner
+    call nl
+
+    mov ah, 09h
+    mov dx, offset answer_cmp ; moving dx to offset answer_cmp
+
+    int 21h
+    ; restore the dx:ax
+    mov ax, word ptr rt+4
+    mov dx, word ptr rt+6
+
     call printAXDX
+    call nl
+    call liner
     call nl
 
     jmp mainloop
@@ -363,12 +420,6 @@ divider PROC
 divider ENDP
 ; 32 bit multiplier usage (dx:ax) * bx
 multiplier PROC
-    ; input:
-    ;   DX:AX = 32-bit value
-    ;   BX    = multiplier
-    ; output:
-    ;   DX:AX = result (low 32 bits)
-
     push cx
     push si
 
@@ -387,20 +438,23 @@ multiplier PROC
     pop cx
     ret
 multiplier ENDP
-
+; 32 bit adder usage (dx:ax) + (cx:bx)
 adder PROC
-    ; input:
-    ;   DX:AX = first 32-bit value
-    ;   CX:BX = second 32-bit value
-    ; output:
-    ;   DX:AX = result
 
-    add ax,bx
-    adc dx,cx
+    add ax,bx ; add bx and store to ax
+    adc dx,cx ; add cx and store dx
 
     ret
 adder ENDP
-
-
+; this creates 205 char for 50 times
+liner PROC
+    mov cx,50
+line:
+    mov ah, 02h
+    mov dl, 205
+    int 21h
+    loop line
+    ret
+liner ENDP  
 
 end begin
