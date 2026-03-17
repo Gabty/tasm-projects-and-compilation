@@ -49,15 +49,17 @@ mainloop:
     mov bl, al
 
     cmp bl, '1' ; if entered 1 call simple interest calculator
-    je simple
-
+    jne compound_block
+    jmp simple
+compound_block:
     cmp bl, '2' ; if entered 2 call simple compounding interest calculator
-    je compound
-
+    jne exit_block
+    jmp compound
+exit_block:
     cmp bl, '3' ; if entered 3 call exits the app
-    je exitapp
+    jne mainloop
 
-    jmp mainloop ; if entered none of the option jump to mainloop
+    jmp exitapp ; if entered none of the option jump to mainloop
 
 nl PROC ; create new line
     mov ah, 02h
@@ -112,11 +114,77 @@ simple PROC
     mov ah, 0Ah
     mov dx, offset tbuf
     int 21h
+    ; converting to digit and inserting in nm
+    ; PRINCIPAL
+    mov cl, pbuf+1
+    lea si, pbuf+2
+    call asciiToDigit
+    mov word ptr nm, ax
+    mov word ptr nm+2, dx
+    ; RATE
+    mov cl, rbuf+1
+    lea si, rbuf+2
+    call asciiToDigit
+    mov word ptr nm+4, ax
+    mov word ptr nm+6, dx
+    ; TERM (YEAR)
+    mov cl, tbuf+1
+    lea si, tbuf+2
+    call asciiToDigit
+    mov word ptr nm+8, ax
+    mov word ptr nm+10, dx
+    ; end of converting and inserting
+    ; process
+    ; scaling rate in 100
+    ; getting Rate x Time
+    
+    ; get the ax, dx of rate
+    mov ax, word ptr nm+4 ; lower bit
+    mov dx, word ptr nm+6 ; higher bit
+    mov bx, 100 ; scaler
+    call multiplier; rate is now scaled; output = Rate*100
+    
+    mov bx, word ptr nm+8
+    call multiplier ; multiply it with time; output = Rate*100*Time
+    
+    mov bx, 10000
+    call adder ; add 100 ; output = 100 + Rate*100*Time
 
+    ; saving the output = 100 + Rate*100*Time in rt
+
+    mov word ptr rt, ax
+    mov word ptr rt+2, dx
+
+    ; load principal
+
+    mov ax, word ptr nm
+    mov dx, word ptr nm+2
+
+    mov bx, word ptr rt ; load the (1+rt) scaled to 100
+    call multiplier ; output = P(100+100RT)
+    mov bx,10000
+    call divider ; remove the scaler and return to normal
+
+    ;save it in rt+4
+    mov word ptr rt+4, ax
+    mov word ptr rt+6, dx
+
+    ; outputting now
+    call nl
+    call liner
     call nl
 
-    ;inserting
+    mov ah, 09h
+    mov dx, offset answer_cmp
+    int 21h
 
+    mov ax, word ptr rt+4
+    mov dx, word ptr rt+6
+
+    call printAXDX
+    call nl
+    call liner
+    call nl
     jmp mainloop
 simple ENDP
 
@@ -258,8 +326,8 @@ exponential_growth:
     mov word ptr rt+6, dx ; store it first so printing cliner and answer_cmp can use it
 
     call nl
-    call liner
-    call nl
+    call liner ; LINE -------------
+    call nl 
 
     mov ah, 09h
     mov dx, offset answer_cmp ; moving dx to offset answer_cmp
@@ -271,7 +339,7 @@ exponential_growth:
 
     call printAXDX
     call nl
-    call liner
+    call liner ; LINE -------------
     call nl
 
     jmp mainloop
@@ -347,7 +415,6 @@ print_loop:
     ret
 
 printAX ENDP
-
 ;print ax and dx (32bit)
 printAXDX PROC
     mov bx,10
