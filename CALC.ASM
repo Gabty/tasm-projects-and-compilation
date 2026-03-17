@@ -384,63 +384,28 @@ convert:
     loop convert
     ret
 asciiToDigit ENDP
-
-; print ax only not dx (16bit)
-printAX PROC
-    mov cx, 0
-    mov bx,10
-    mov di,si
-
-convert_loop:
-    xor dx,dx
-    div bx
-    push dx
-    inc cx
-    cmp ax,0
-    jne convert_loop
-
-print_loop:
-    pop ax
-    add al, '0'
-    mov [si], al
-    inc si
-    loop print_loop
-
-    mov byte ptr [si], '$'
-
-    mov dx,di
-    mov ah, 09h
-    int 21h
-
-    ret
-
-printAX ENDP
 ;print ax and dx (32bit)
 printAXDX PROC
-    mov bx,10
-    xor cx,cx
-    mov di,si          ; save buffer start
+    mov bx,10   ; divisor for operation
+    xor cx,cx   ;clear cx
+    mov di,si   ; save buffer start
 
 convert_loop2:
-    push ax            ; save low word
+    push ax     ; save low word
 
     mov ax,dx
     xor dx,dx
-    div bx             ; divide high word
-                       ; AX = high quotient
-                       ; DX = remainder
+    div bx      ; divide high word by 10 (bx)
 
-    mov bp,ax          ; save high quotient
-    pop ax             ; restore low word
+    mov bp,ax   ; save high quotient
+    pop ax      ; restore low word
 
-    div bx             ; divide low word with remainder
-                       ; AX = low quotient
-                       ; DX = digit remainder
+    div bx      ; divide low word by 10 (bx)
 
-    push dx
-    inc cx
+    push dx     ; save remainder
+    inc cx      ; increment counter
 
-    mov dx,bp          ; rebuild DX:AX quotient
+    mov dx,bp   ; rebuild DX:AX quotient
 
     cmp dx,0
     jne convert_loop2
@@ -448,61 +413,64 @@ convert_loop2:
     jne convert_loop2
 
 print_loop2:
-    pop dx
-    add dl,'0'
-    mov [si],dl
+    pop dx              ; get the remainder in reverse order
+    add dl,'0'          ;convert to ascii
+    mov [si],dl         ; store in buffer
     inc si
-    loop print_loop2
+    loop print_loop2    ; repeat for all digits
 
-    mov byte ptr [si],'$'
+    mov byte ptr [si],'$'   ; place terminator
 
-    mov dx,di
+    mov dx,di       ; point to start of string
     mov ah,09h
-    int 21h
+    int 21h         ; print the string
     ret
 printAXDX ENDP
 ;32 bit divider usage (dx:ax) / bx
 divider PROC
-
+    ;save registers
     push bx
     push cx
     push bp
 
-    push ax          ; save low word
+    push ax   ; save low word
 
-    mov ax,dx        ; divide high word
-    xor dx,dx
-    div bx           ; AX = high quotient, DX = remainder
+    mov ax,dx   ; move high to ax
+    xor dx,dx   ; remove value of dx
+    div bx      ; divide high word by bx
+                ; AX = high quotient
+                ; DX = remainder
 
-    mov bp,ax        ; store high quotient
-    pop ax           ; restore low word
+    mov bp,ax   ; store high quotient in bp
+    pop ax      ; restore low word
 
-    div bx           ; divide low with remainder
+    div bx      ; divide low with remainder
 
-    mov dx,bp        ; rebuild 32-bit quotient
-
+    mov dx,bp   ; combine the result
+    ; restore the registers then return
     pop bp
     pop cx
     pop bx
     ret
 
 divider ENDP
-; 32 bit multiplier usage (dx:ax) * bx
+; 32 bit multiplier usage (dx:ax) * bx; returns new dx:ax
 multiplier PROC
-    push cx
+    ; preserve the content
+    push cx 
     push si
+    ; save low word
+    mov si,ax        
 
-    mov si,ax        ; save low word
+    mov ax,dx   ; mov high first to mul
+    mul bx      ; high * BX
+    mov cx,ax   ; store partial
 
-    mov ax,dx
-    mul bx           ; high * BX
-    mov cx,ax        ; partial high
+    mov ax,si   ; get the low word
+    mul bx      ; low * BX
 
-    mov ax,si
-    mul bx           ; low * BX → DX:AX
-
-    add dx,cx        ; combine
-
+    add dx,cx   ; add partial to high part
+    ; restore registers then return
     pop si
     pop cx
     ret
