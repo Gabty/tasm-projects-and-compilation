@@ -23,3 +23,7 @@ A 32-bit compound and simple interest calculator written in Turbo Assembler (TAS
 tasm calc.asm
 tlink calc.obj
 calc.exe
+```
+
+## Note
+- Keep the max value to 100_000 for optimal use and to avoid overflowing
