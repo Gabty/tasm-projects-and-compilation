@@ -21,9 +21,9 @@ opt3 db "Logging out...$"
 
 ;Request user inputs
 principal_qt db "What is the principal: $"
-rate_qt db "What is the annual interest rate (percentage): $"
-term_qt db "What is the term (year): $"
-compound_qt db "What is the compound frequency: $"
+rate_qt db "What is the annual interest percentage rate (0-9): $"
+term_qt db "What is the year term (0-99): $"
+compound_qt db "What is the compound frequency (0-9): $"
 answer_cmp db "Future Value: $"
 error_msg db ">>> ERROR: Invalid option! <<<",13,10
           db "Please choose 1, 2, or 3 only.",13,10,"$"
