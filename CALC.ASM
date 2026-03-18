@@ -2,64 +2,494 @@
 .model small
 .stack 100h
 .data
+
+;Header
 head db "Interest Calculator",13,10, "$"
-options db "1. Future Value of Simple Interest",13,10,"2. Future Value of Compounding Interest",13,10,"3. Exit$"
+
+;Options Begin
 question db "Options: $"
+options db "1. Future Value of Simple Interest",13,10
+        db "2. Future Value of Compounding Interest",13,10
+        db "3. Logout$"
+choice db "Choice: $"
+
+;Response on call
 opt1 db "Future Value of Simple Interest$"
 opt2 db "Future Value of Compounding Interest$"
-opt3 db "Exiting...$"
+opt3 db "Logging out...$"
+
+
+;Request user inputs
 principal_qt db "What is the principal: $"
 rate_qt db "What is the annual interest rate (percentage): $"
 term_qt db "What is the term (year): $"
 compound_qt db "What is the compound frequency: $"
-
 answer_cmp db "Future Value: $"
+error_msg db ">>> ERROR: Invalid option! <<<",13,10
+          db "Please choose 1, 2, or 3 only.",13,10,"$"
 
-; buffer for compound
-; maximum number allowed ;current length ; space reservation
-pbuf db 12,0,13 dup(?) ; up to 13 possible
-rbuf db 2,0,3 dup(?) ; must be 2 length
-tbuf db 3,0,4 dup(?) ; must be 3 length
-cbuf db 3,0,4 dup(?) ; must be 3 length
-; possible length was set to prevent overloading
-; numeric holder
-nm dd ?, ?, ?, ? ; p,r,t,c
-rt dd ?,?,? ; ct
+; Login handler
+login_prompt db "======= LOGIN REQUIRED =======",13,10
+             db " ",13,10
+             db "Username: $"
+password_prompt db "Password: $"
+login_success db "Login successful!",13,10,"$"
+login_failed db "Invalid credentials! Access denied.",13,10,"$"
+welcome_msg db "Welcome to the Interest Calculator!",13,10,"$"
+try_again db "Press any key to try again...$"
+
+; Input validation messages
+invalid_input_msg db ">>> ERROR: Invalid input! Please enter a positive number.",13,10,"$"
+empty_input_msg db ">>> ERROR: Input cannot be empty!",13,10,"$"
+space_input_msg db ">>> ERROR: Input cannot be spaces only!",13,10,"$"
+
+; Username/password buffers
+userbuf db 20,0,21 dup(?)  ; 20 char max for username
+passbuf db 20,0,21 dup(?)  ; 20 char max for password
+
+; Hardcoded credentials
+valid_username db "root",0  
+valid_password db "admin",0 
+
+
+; Principal buffer: max 7 chars, actual length, 8 bytes storage: we limit max numbers to avoid overflow
+pbuf db 7,0,8 dup(?)
+
+; Rate buffer: max 2 chars (0-99%), actual length, 3 bytes storage
+rbuf db 2,0,3 dup(?)
+
+; Term buffer: max 3 chars (0-99 years), actual length, 4 bytes storage
+tbuf db 3,0,4 dup(?)
+
+; Compound frequency buffer: max 3 chars, actual length, 4 bytes storage
+cbuf db 3,0,4 dup(?)
+
+; Numeric holders: 4 doublewords for principal, rate, term, compound
+nm dd ?, ?, ?, ?
+
+; Runtime storage: 3 doublewords for calculations
+rt dd ?, ?, ?
 .code
+
 begin:
     mov ax, @data
     mov ds, ax
 
-    mov ah, 09h
-    mov dx, offset head
-    int 21h
+    ; Print header (once at startup)
+    call title_header
+    
+    ; REQUIRE LOGIN BEFORE ACCESSING CALCULATOR
+    call login         ; Will loop until successful login
+
 mainloop:
-    mov ah,09h ; print options
+    call nl
+    mov ah,09h
+    mov dx, offset question
+    int 21h
+
+    call nl
+    mov ah,09h
     mov dx, offset options
     int 21h
 
-    call nl ; new line
-
-    mov ah,09h ; p
-    mov dx, offset question
+    call nl
+    mov ah,09h
+    mov dx, offset choice
     int 21h
-    
-    mov ah, 01h ; ask user for one char
-    int 21h
-    mov bl, al
 
+    mov ah, 01h
+    int 21h
+    mov bl, al ;no another 21h coz no need to wait for another user input
+
+
+    ;Base if statement
     cmp bl, '1' ; if entered 1 call simple interest calculator
-    jne compound_block
+    jne compound_block ;jump to next if statement
     jmp simple
+
 compound_block:
     cmp bl, '2' ; if entered 2 call simple compounding interest calculator
-    jne exit_block
+    jne exit_block ;jump to next if statement
     jmp compound
-exit_block:
-    cmp bl, '3' ; if entered 3 call exits the app
-    jne mainloop
 
-    jmp exitapp ; if entered none of the option jump to mainloop
+exit_block:
+    cmp bl, '3' ; if entered 3, logout
+    jne invalid_choice
+    jmp logout
+    
+logout PROC
+    call nl
+    mov ah, 09h
+    mov dx, offset opt3
+    int 21h
+    call nl
+    call nl
+    
+    ; Clear buffers for next login
+    mov byte ptr [userbuf+1], 0
+    mov byte ptr [passbuf+1], 0
+    
+    ; Return to login screen
+    call login
+    jmp mainloop
+logout ENDP
+    
+invalid_choice:
+    call nl
+    mov ah, 09h
+    mov dx, offset error_msg
+    int 21h
+    jmp mainloop
+
+title_header PROC
+    ; Print top line
+    call nl     
+    call liner   
+    call nl      
+
+    ; Print title
+    mov ah, 09h       ; Set DOS string function
+    mov dx, offset head
+    int 21h           ; Print "Interest Calculator" + CR+LF
+
+    ; Print bottom line
+    call liner   
+    call nl   
+title_header ENDP
+
+login PROC
+    ; Save registers
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    push di
+    
+login_attempt:
+    call nl
+    call nl
+    
+    ; Print login header
+    mov ah, 09h
+    mov dx, offset login_prompt
+    int 21h
+    
+    ; Get username
+    mov ah, 0Ah
+    mov dx, offset userbuf
+    int 21h
+
+    call nl
+    
+    ; Get password (with asterisks)
+    mov ah, 09h
+    mov dx, offset password_prompt
+    int 21h
+    
+    ; Custom password input (shows * instead of characters)
+    call get_password
+    
+    call nl
+    
+    ; Validate credentials
+    call validate_login
+    cmp ax, 1          ; 1 = success, 0 = failure
+    je login_successful
+    
+    ; LOGIN FAILED - Show error and try again
+    call nl
+    mov ah, 09h
+    mov dx, offset login_failed
+    int 21h
+    
+    mov ah, 09h
+    mov dx, offset try_again
+    int 21h
+    
+    ; Wait for key press
+    mov ah, 01h
+    int 21h
+    
+    jmp login_attempt  ; Try again
+    
+login_successful:
+    call nl
+    mov ah, 09h
+    mov dx, offset login_success
+    int 21h
+    
+    ; Restore registers
+    pop di
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    call welcome_handler
+    jmp mainloop              
+login ENDP
+
+; Custom password input (shows *)
+get_password PROC
+    push ax
+    push bx
+    push cx
+    push dx
+    push si
+    
+    mov si, offset passbuf+2  ; Where to store password
+    xor cx, cx                 ; Character counter
+    
+get_char:
+    mov ah, 08h                ; DOS function: read without echo
+    int 21h
+    
+    cmp al, 13                 ; Enter key?
+    je password_done
+    
+    cmp al, 8                  ; Backspace?
+    je handle_backspace
+    
+    ; Store character
+    mov [si], al
+    inc si
+    inc cx
+    
+    ; Print asterisk
+    mov ah, 02h
+    mov dl, '*'
+    int 21h
+    
+    jmp get_char
+    
+handle_backspace:
+    cmp cx, 0                  ; Nothing to delete?
+    je get_char
+    
+    dec si
+    dec cx
+    
+    ; Move cursor back, print space, move back again
+    mov ah, 02h
+    mov dl, 8                  ; Backspace
+    int 21h
+    mov dl, ' '                ; Space (erase the *)
+    int 21h
+    mov dl, 8                  ; Backspace again
+    int 21h
+    
+    jmp get_char
+    
+password_done:
+    mov byte ptr [si], 0       ; Null terminate
+    mov al, cl
+    mov [passbuf+1], al        ; Store length
+    
+    pop si
+    pop dx
+    pop cx
+    pop bx
+    pop ax
+    ret
+get_password ENDP
+
+; Validate username and password
+validate_login PROC
+    push bx
+    push cx
+    push si
+    push di
+    
+    ; Clean the input strings first
+    lea si, userbuf+2
+    call strip_crlf
+    
+    lea si, passbuf+2
+    call strip_crlf
+    
+    ; Check username
+    lea si, userbuf+2          ; Entered username
+    lea di, valid_username     ; Valid username
+    call compare_strings
+    cmp ax, 0
+    jne validate_fail          ; Username mismatch
+    
+    ; Check password
+    lea si, passbuf+2          ; Entered password
+    lea di, valid_password     ; Valid password
+    call compare_strings
+    cmp ax, 0
+    jne validate_fail
+    
+    ; Login successful
+    mov ax, 1
+    jmp validate_done
+    
+validate_fail:
+    xor ax, ax                 ; AX = 0 (failure)
+    
+validate_done:
+    pop di
+    pop si
+    pop cx
+    pop bx
+    ret
+validate_login ENDP
+
+; Compare two null-terminated strings
+; SI = string1, DI = string2
+; Returns AX = 0 if equal, 1 if different
+compare_strings PROC
+    push si
+    push di
+    push cx
+    
+compare_loop:
+    mov al, [si]
+    mov bl, [di]
+    
+    cmp al, bl
+    jne strings_different
+    
+    cmp al, 0                  ; End of string?
+    je strings_equal
+    
+    inc si
+    inc di
+    jmp compare_loop
+    
+strings_different:
+    mov ax, 1
+    jmp compare_done
+    
+strings_equal:
+    xor ax, ax                 ; AX = 0
+    
+compare_done:
+    pop cx
+    pop di
+    pop si
+    ret
+compare_strings ENDP
+
+; Strip carriage return and line feed from string
+; SI = string to clean
+strip_crlf PROC
+    push ax
+    push si
+    
+strip_loop:
+    mov al, [si]
+    cmp al, 13        ; Carriage return?
+    je strip_replace
+    cmp al, 10        ; Line feed?
+    je strip_replace
+    cmp al, 0         ; End of string?
+    je strip_done
+    inc si
+    jmp strip_loop
+    
+strip_replace:
+    mov byte ptr [si], 0  ; Replace with null terminator
+    
+strip_done:
+    pop si
+    pop ax
+    ret
+strip_crlf ENDP
+
+; Validate if string contains only digits
+; SI = pointer to string, CL = length
+; Returns AL = 0 if valid, 1 if empty, 2 if invalid chars
+validate_input PROC
+    push bx
+    push cx
+    push si
+    
+    ; Check if empty
+    cmp cl, 0
+    je input_empty
+    
+    ; Check for spaces only
+    push cx
+    push si
+    mov ch, 0
+check_spaces:
+    mov al, [si]
+    cmp al, ' '        ; Space character
+    jne has_digits
+    inc si
+    loop check_spaces
+    pop si
+    pop cx
+    ; If we get here, all were spaces
+    jmp input_spaces
+    
+has_digits:
+    pop si
+    pop cx
+    
+    ; Check each character is a digit
+    mov ch, 0
+    mov bx, si
+    
+check_digits:
+    mov al, [bx]
+    
+    ; Allow digits 0-9 only
+    cmp al, '0'
+    jb not_digit
+    cmp al, '9'
+    ja not_digit
+    
+    inc bx
+    loop check_digits
+    
+    ; All characters are digits
+    pop si
+    pop cx
+    pop bx
+    mov al, 0        ; Valid
+    ret
+    
+not_digit:
+    pop si
+    pop cx
+    pop bx
+    mov al, 2        ; Contains non-digit
+    ret
+    
+input_empty:
+    pop si
+    pop cx
+    pop bx
+    mov al, 1        ; Empty
+    ret
+    
+input_spaces:
+    pop si
+    pop cx
+    pop bx
+    mov al, 3        ; Only spaces
+    ret
+validate_input ENDP
+
+welcome_handler PROC
+    ; Print top line
+    call nl
+    call nl     
+    call liner   
+    call nl    
+
+    ; Print message
+    mov ah, 09h
+    mov dx, offset welcome_msg
+    int 21h
+
+    ; Print bottom line
+    call liner   
+welcome_handler ENDP
 
 nl PROC ; create new line
     mov ah, 02h
@@ -70,6 +500,7 @@ nl PROC ; create new line
     ret
 nl ENDP
 
+;Exiter, ceased to use but maybe in the future so we'll preserve this here
 exitapp PROC
     call nl
     mov ah, 09h
@@ -82,6 +513,8 @@ exitapp ENDP
 
 simple PROC
     call nl
+    call nl
+    call nl
     call liner ; liner ============
     call nl
     mov ah, 09h
@@ -91,51 +524,154 @@ simple PROC
     call liner ; liner ============
     call nl
 
-    ;PRINCIPAL
+    ;PRINCIPAL - WITH VALIDATION
+get_principal:
     mov ah, 09h
     mov dx, offset principal_qt
     int 21h
+    
     mov ah, 0Ah
     mov dx, offset pbuf
     int 21h
     call nl
-    ;RATE
+    
+    ; Validate principal
+    mov cl, pbuf+1
+    lea si, pbuf+2
+    call validate_input
+    
+    cmp al, 0
+    je principal_ok
+    cmp al, 1
+    je principal_empty
+    cmp al, 3
+    je principal_spaces
+    
+    ; Invalid characters
     mov ah, 09h
-    mov dx, offset rate_qt
+    mov dx, offset invalid_input_msg
     int 21h
-    mov ah, 0Ah
-    mov dx, offset rbuf
-    int 21h
-    call nl
-    ; TIME (YEAR)
+    jmp get_principal
+    
+principal_empty:
     mov ah, 09h
-    mov dx, offset term_qt
+    mov dx, offset empty_input_msg
     int 21h
-    mov ah, 0Ah
-    mov dx, offset tbuf
+    jmp get_principal
+    
+principal_spaces:
+    mov ah, 09h
+    mov dx, offset space_input_msg
     int 21h
-    ; converting to digit and inserting in nm
-    ; PRINCIPAL
+    jmp get_principal
+    
+principal_ok:
+    ; Convert principal
     mov cl, pbuf+1
     lea si, pbuf+2
     call asciiToDigit
     mov word ptr nm, ax
     mov word ptr nm+2, dx
-    ; RATE
+
+    ;RATE - WITH VALIDATION
+get_rate:
+    mov ah, 09h
+    mov dx, offset rate_qt
+    int 21h
+    
+    mov ah, 0Ah
+    mov dx, offset rbuf
+    int 21h
+    call nl
+    
+    ; Validate rate
+    mov cl, rbuf+1
+    lea si, rbuf+2
+    call validate_input
+    
+    cmp al, 0
+    je rate_ok
+    cmp al, 1
+    je rate_empty
+    cmp al, 3
+    je rate_spaces
+    
+    ; Invalid characters
+    mov ah, 09h
+    mov dx, offset invalid_input_msg
+    int 21h
+    jmp get_rate
+    
+rate_empty:
+    mov ah, 09h
+    mov dx, offset empty_input_msg
+    int 21h
+    jmp get_rate
+    
+rate_spaces:
+    mov ah, 09h
+    mov dx, offset space_input_msg
+    int 21h
+    jmp get_rate
+    
+rate_ok:
+    ; Convert rate
     mov cl, rbuf+1
     lea si, rbuf+2
     call asciiToDigit
     mov word ptr nm+4, ax
     mov word ptr nm+6, dx
-    ; TERM (YEAR)
+
+    ; TERM - WITH VALIDATION
+get_term:
+    mov ah, 09h
+    mov dx, offset term_qt
+    int 21h
+    
+    mov ah, 0Ah
+    mov dx, offset tbuf
+    int 21h
+    call nl
+    
+    ; Validate term
+    mov cl, tbuf+1
+    lea si, tbuf+2
+    call validate_input
+    
+    cmp al, 0
+    je term_ok
+    cmp al, 1
+    je term_empty
+    cmp al, 3
+    je term_spaces
+    
+    ; Invalid characters
+    mov ah, 09h
+    mov dx, offset invalid_input_msg
+    int 21h
+    jmp get_term
+    
+term_empty:
+    mov ah, 09h
+    mov dx, offset empty_input_msg
+    int 21h
+    jmp get_term
+    
+term_spaces:
+    mov ah, 09h
+    mov dx, offset space_input_msg
+    int 21h
+    jmp get_term
+    
+term_ok:
+    ; Convert term
     mov cl, tbuf+1
     lea si, tbuf+2
     call asciiToDigit
     mov word ptr nm+8, ax
     mov word ptr nm+10, dx
-    ; end of converting and inserting
-    ; process
-    ; scaling rate in 100
+
+    ; process - scaling rate in 100
     ; getting Rate x Time
     
     ; get the ax, dx of rate
@@ -151,12 +687,10 @@ simple PROC
     call adder ; add 100 ; output = 100 + Rate*100*Time
 
     ; saving the output = 100 + Rate*100*Time in rt
-
     mov word ptr rt, ax
     mov word ptr rt+2, dx
 
     ; load principal
-
     mov ax, word ptr nm
     mov dx, word ptr nm+2
 
@@ -190,78 +724,209 @@ simple ENDP
 
 compound PROC
     call nl
+    call nl
+    call nl
     call liner ; liner ============
     call nl
-    mov cx, 50
     mov ah, 09h
     mov dx, offset opt2
     int 21h
     call nl
     call liner ; liner ============
     call nl
-    ; PRINCIPAL
+    
+    ; PRINCIPAL - WITH VALIDATION
+get_principal_c:
     mov ah, 09h
-    mov dx, offset principal_qt ; print
+    mov dx, offset principal_qt
     int 21h
-
-    mov ah, 0Ah; ask for input
-    mov dx, offset pbuf ; place the length at pbuf+1 and chars +2
+    
+    mov ah, 0Ah
+    mov dx, offset pbuf
     int 21h
     call nl
-    ; RATE
-    mov ah, 09h 
-    mov dx, offset rate_qt  ; print
+    
+    ; Validate principal
+    mov cl, pbuf+1
+    lea si, pbuf+2
+    call validate_input
+    
+    cmp al, 0
+    je principal_ok_c
+    cmp al, 1
+    je principal_empty_c
+    cmp al, 3
+    je principal_spaces_c
+    
+    ; Invalid characters
+    mov ah, 09h
+    mov dx, offset invalid_input_msg
+    int 21h
+    jmp get_principal_c
+    
+principal_empty_c:
+    mov ah, 09h
+    mov dx, offset empty_input_msg
+    int 21h
+    jmp get_principal_c
+    
+principal_spaces_c:
+    mov ah, 09h
+    mov dx, offset space_input_msg
+    int 21h
+    jmp get_principal_c
+    
+principal_ok_c:
+    ; Convert principal
+    mov cl, pbuf+1
+    lea si, pbuf+2
+    call asciiToDigit
+    mov word ptr nm, ax
+    mov word ptr nm+2, dx
+
+    ; RATE - WITH VALIDATION
+get_rate_c:
+    mov ah, 09h
+    mov dx, offset rate_qt
     int 21h
     
     mov ah, 0Ah
     mov dx, offset rbuf
     int 21h
     call nl
-    ; Term
+    
+    ; Validate rate
+    mov cl, rbuf+1
+    lea si, rbuf+2
+    call validate_input
+    
+    cmp al, 0
+    je rate_ok_c
+    cmp al, 1
+    je rate_empty_c
+    cmp al, 3
+    je rate_spaces_c
+    
+    ; Invalid characters
     mov ah, 09h
-    mov dx, offset term_qt ; print
+    mov dx, offset invalid_input_msg
+    int 21h
+    jmp get_rate_c
+    
+rate_empty_c:
+    mov ah, 09h
+    mov dx, offset empty_input_msg
+    int 21h
+    jmp get_rate_c
+    
+rate_spaces_c:
+    mov ah, 09h
+    mov dx, offset space_input_msg
+    int 21h
+    jmp get_rate_c
+    
+rate_ok_c:
+    ; Convert rate
+    mov cl, rbuf+1
+    lea si, rbuf+2
+    call asciiToDigit
+    mov word ptr nm+4, ax
+    mov word ptr nm+6, dx
+
+    ; TERM - WITH VALIDATION
+get_term_c:
+    mov ah, 09h
+    mov dx, offset term_qt
     int 21h
     
     mov ah, 0Ah
     mov dx, offset tbuf
     int 21h
-    ; Compount
     call nl
-    mov ah, 09h 
-    mov dx, offset compound_qt ; print
+    
+    ; Validate term
+    mov cl, tbuf+1
+    lea si, tbuf+2
+    call validate_input
+    
+    cmp al, 0
+    je term_ok_c
+    cmp al, 1
+    je term_empty_c
+    cmp al, 3
+    je term_spaces_c
+    
+    ; Invalid characters
+    mov ah, 09h
+    mov dx, offset invalid_input_msg
+    int 21h
+    jmp get_term_c
+    
+term_empty_c:
+    mov ah, 09h
+    mov dx, offset empty_input_msg
+    int 21h
+    jmp get_term_c
+    
+term_spaces_c:
+    mov ah, 09h
+    mov dx, offset space_input_msg
+    int 21h
+    jmp get_term_c
+    
+term_ok_c:
+    ; Convert term
+    mov cl, tbuf+1
+    lea si, tbuf+2
+    call asciiToDigit
+    mov word ptr nm+8, ax
+    mov word ptr nm+10, dx
+
+    ; COMPOUND FREQUENCY - WITH VALIDATION
+get_compound_c:
+    mov ah, 09h
+    mov dx, offset compound_qt
     int 21h
     
     mov ah, 0Ah
     mov dx, offset cbuf
     int 21h
-
     call nl
-    ; storing the value to var at .data
-    ; principal
-    mov cl, pbuf+1
-    lea si, pbuf+2 ; load effective address
     
-    call asciiToDigit ; convert ascii to digit
-    mov word ptr nm, ax ; store low bit at ax
-    mov word ptr nm+2,dx ; high bit at dx
-    ; rate
-    mov cl, rbuf+1
-    lea si, rbuf+2
-    
-    call asciiToDigit
-    mov word ptr nm+4, ax
-    mov word ptr nm+6, dx
-    ; term (year)
-    mov cl, tbuf+1
-    lea si, tbuf+2
-    
-    call asciiToDigit
-    mov word ptr nm+8, ax
-    mov word ptr nm+10, dx
-    ; compound frequency
+    ; Validate compound frequency
     mov cl, cbuf+1
     lea si, cbuf+2
+    call validate_input
     
+    cmp al, 0
+    je compound_ok_c
+    cmp al, 1
+    je compound_empty_c
+    cmp al, 3
+    je compound_spaces_c
+    
+    ; Invalid characters
+    mov ah, 09h
+    mov dx, offset invalid_input_msg
+    int 21h
+    jmp get_compound_c
+    
+compound_empty_c:
+    mov ah, 09h
+    mov dx, offset empty_input_msg
+    int 21h
+    jmp get_compound_c
+    
+compound_spaces_c:
+    mov ah, 09h
+    mov dx, offset space_input_msg
+    int 21h
+    jmp get_compound_c
+    
+compound_ok_c:
+    ; Convert compound frequency
+    mov cl, cbuf+1
+    lea si, cbuf+2
     call asciiToDigit
     mov word ptr nm+12, ax
     mov word ptr nm+14, dx
@@ -341,7 +1006,7 @@ exponential_growth:
     call nl
     call liner ; LINE -------------
     call nl
-
+    
     jmp mainloop
 compound ENDP
 
