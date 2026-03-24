@@ -22,9 +22,9 @@ opt3 db "Logging out...$"
 
 ; ========== INPUT PROMPTS ==========
 principal_qt db "What is the principal: $"
-rate_qt db "What is the annual interest rate percentage (0-9): $"
+rate_qt db "What is the annual interest percentage rate (0-9): $"
 term_qt db "What is the year term (0-99): $"
-compound_qt db "What is the compound frequency(0-9) : $"
+compound_qt db "What is the compound frequency (0-9): $"
 answer_cmp db "Future Value: $"
 
 ; ========== ERROR MESSAGES ==========
