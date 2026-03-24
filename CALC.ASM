@@ -888,7 +888,7 @@ compound_ok_c:
     mov dx, word ptr nm+6
     mov bx, 100              ; Scale rate
     call multiplier
-    mov bx, word ptr nm+12   ; Divide by n
+    mov bx, word ptr nm+12   ; Divide by c
     call divider
     mov bx, 10000            ; Add 1 (scaled)
     mov cx, 0
