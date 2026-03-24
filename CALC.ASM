@@ -22,9 +22,10 @@ opt3 db "Logging out...$"
 
 ; ========== INPUT PROMPTS ==========
 principal_qt db "What is the principal: $"
+compound_principal_qt db "What is the principal (1-65535): $"
 rate_qt db "What is the annual interest percentage rate (0-9): $"
-term_qt db "What is the year term (0-99): $"
-compound_qt db "What is the compound frequency (0-9): $"
+term_qt db "What is the year term (1-99): $"
+compound_qt db "What is the compound frequency (1-99): $"
 answer_cmp db "Future Value: $"
 
 ; ========== ERROR MESSAGES ==========
@@ -56,6 +57,7 @@ valid_password db "admin",0
 
 ; ========== NUMBER INPUT BUFFERS ==========
 pbuf db 7,0,8 dup(?)    ; Principal buffer (max 7 digits)
+cpbuf db 6,0,6 dup(?)   ; Compound Principal Buffer (5 digits)
 rbuf db 2,0,3 dup(?)    ; Rate buffer (max 2 digits)
 tbuf db 3,0,4 dup(?)    ; Term buffer (max 3 digits)
 cbuf db 3,0,4 dup(?)    ; Compound frequency buffer
@@ -530,7 +532,7 @@ principal_ok:
     mov cl, pbuf+1
     lea si, pbuf+2
     call asciiToDigit
-    mov word ptr , ax
+    mov word ptr inputs , ax
     mov word ptr inputs+2, dx
 
 ; ========== GET RATE WITH VALIDATION ==========
@@ -673,7 +675,7 @@ term_ok:
     jmp mainloop
 simple ENDP
 
-; ========== COMPOUND INTEREST CALCULATOR ==========
+; ========== COMPOUND INTEREST CALCULATOR ( ONLY IN 16 BIT ) ========== 
 compound PROC
     call nl
     call nl
@@ -690,16 +692,16 @@ compound PROC
 ; ========== GET PRINCIPAL (COMPOUND) ==========
 get_principal_c:
     mov ah, 09h
-    mov dx, offset principal_qt
+    mov dx, offset compound_principal_qt
     int 21h
     
     mov ah, 0Ah
-    mov dx, offset pbuf
+    mov dx, offset cpbuf
     int 21h
     call nl
     
-    mov cl, pbuf+1
-    lea si, pbuf+2
+    mov cl, cpbuf+1
+    lea si, cpbuf+2
     call validate_input
     
     cmp al, 0
@@ -727,8 +729,8 @@ principal_spaces_c:
     jmp get_principal_c
     
 principal_ok_c:
-    mov cl, pbuf+1
-    lea si, pbuf+2
+    mov cl, cpbuf+1
+    lea si, cpbuf+2
     call asciiToDigit
     mov word ptr inputs, ax
     mov word ptr inputs+2, dx
