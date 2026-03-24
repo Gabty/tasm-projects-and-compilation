@@ -872,18 +872,18 @@ compound_ok_c:
     mov word ptr nm+14, dx
 
 ; ========== COMPOUND INTEREST CALCULATION ==========
-    ; Formula: FV = P * (1 + r/n)^(n*t)
+    ; Formula: FV = P * (1 + r/c)^(c*t)
     ; All values scaled by 10000 to handle decimals
     
-    ; Calculate n*t (compounding periods)
+    ; Calculate c*t (compounding periods)
     mov ax, word ptr nm+8    ; Get term
     mov dx, word ptr nm+10
     mov bx, word ptr nm+12   ; Multiply by compound frequency
     call multiplier
-    mov word ptr rt, ax      ; Store n*t
+    mov word ptr rt, ax      ; Store c*t
     mov word ptr rt+2, dx
 
-    ; Calculate (1 + r/n)
+    ; Calculate (1 + r/c)
     mov ax, word ptr nm+4    ; Get rate
     mov dx, word ptr nm+6
     mov bx, 100              ; Scale rate
@@ -894,13 +894,13 @@ compound_ok_c:
     mov cx, 0
     call adder
 
-    ; Calculate (1 + r/n)^(n*t) using loop
+    ; Calculate (1 + r/c)^(c*t) using loop
     mov bx, ax               ; Store base
     mov cx, bx               ; Copy base
     mov ax, 10000            ; Start with 1 (scaled)
     
-    mov si, word ptr rt      ; Get n*t (low word)
-    mov di, word ptr rt+2    ; Get n*t (high word)
+    mov si, word ptr rt      ; Get c*t (low word)
+    mov di, word ptr rt+2    ; Get c*t (high word)
 
 exponential_growth:
     mov bx, cx               ; Multiply current result by base
@@ -916,7 +916,7 @@ exponential_growth:
     cmp si, 0
     jne exponential_growth
 
-    mov word ptr rt+4, ax    ; Store (1+r/n)^(n*t)
+    mov word ptr rt+4, ax    ; Store (1+r/c)^(c*t)
     mov word ptr rt+6, dx
 
     ; Multiply by principal
