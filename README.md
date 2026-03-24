@@ -24,6 +24,3 @@ tasm calc.asm
 tlink calc.obj
 calc.exe
 ```
-
-## Note
-- Keep the principal max value to 100_000 for optimal use and to avoid overflowing
