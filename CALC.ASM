@@ -61,8 +61,8 @@ tbuf db 3,0,4 dup(?)    ; Term buffer (max 3 digits)
 cbuf db 3,0,4 dup(?)    ; Compound frequency buffer
 
 ; ========== STORAGE VARIABLES ==========
-nm dd ?, ?, ?, ?        ; Stores principal, rate, term, compound
-rt dd ?, ?, ?           ; Runtime storage for calculations
+inputs dd ?, ?, ?, ?        ; Stores principal, rate, term, compound
+temp dd ?, ?, ?           ; Runtime storage for calculations
 
 .code
 
@@ -530,8 +530,8 @@ principal_ok:
     mov cl, pbuf+1
     lea si, pbuf+2
     call asciiToDigit
-    mov word ptr nm, ax
-    mov word ptr nm+2, dx
+    mov word ptr , ax
+    mov word ptr inputs+2, dx
 
 ; ========== GET RATE WITH VALIDATION ==========
 get_rate:
@@ -576,8 +576,8 @@ rate_ok:
     mov cl, rbuf+1
     lea si, rbuf+2
     call asciiToDigit
-    mov word ptr nm+4, ax
-    mov word ptr nm+6, dx
+    mov word ptr inputs+4, ax
+    mov word ptr inputs+6, dx
 
 ; ========== GET TERM WITH VALIDATION ==========
 get_term:
@@ -622,37 +622,37 @@ term_ok:
     mov cl, tbuf+1
     lea si, tbuf+2
     call asciiToDigit
-    mov word ptr nm+8, ax
-    mov word ptr nm+10, dx
+    mov word ptr inputs+8, ax
+    mov word ptr inputs+10, dx
 
 ; ========== SIMPLE INTEREST CALCULATION ==========
     ; Formula: FV = P * (1 + RT)
     ; All values scaled by 10000 to handle decimals
     
-    mov ax, word ptr nm+4    ; Get rate
-    mov dx, word ptr nm+6
+    mov ax, word ptr inputs+4    ; Get rate
+    mov dx, word ptr inputs+6
     mov bx, 100              ; Scale rate
     call multiplier
     
-    mov bx, word ptr nm+8    ; Multiply by term
+    mov bx, word ptr inputs+8    ; Multiply by term
     call multiplier
     
     mov bx, 10000            ; Add 1 (scaled as 10000)
     call adder
 
-    mov word ptr rt, ax      ; Store (10000 + Rate*100*Term)
-    mov word ptr rt+2, dx
+    mov word ptr temp, ax      ; Store (10000 + Rate*100*Term)
+    mov word ptr temp+2, dx
 
-    mov ax, word ptr nm      ; Get principal
-    mov dx, word ptr nm+2
+    mov ax, word ptr inputs      ; Get principal
+    mov dx, word ptr inputs+2
 
-    mov bx, word ptr rt      ; Multiply principal * (10000 + ...)
+    mov bx, word ptr temp      ; Multiply principal * (10000 + ...)
     call multiplier
     mov bx, 10000            ; Divide to remove scaling
     call divider
 
-    mov word ptr rt+4, ax    ; Store final result
-    mov word ptr rt+6, dx
+    mov word ptr temp+4, ax    ; Store final result
+    mov word ptr temp+6, dx
 
 ; ========== DISPLAY RESULT ==========
     call nl
@@ -663,8 +663,8 @@ term_ok:
     mov dx, offset answer_cmp
     int 21h
 
-    mov ax, word ptr rt+4
-    mov dx, word ptr rt+6
+    mov ax, word ptr temp+4
+    mov dx, word ptr temp+6
     call printAXDX
     
     call nl
@@ -730,8 +730,8 @@ principal_ok_c:
     mov cl, pbuf+1
     lea si, pbuf+2
     call asciiToDigit
-    mov word ptr nm, ax
-    mov word ptr nm+2, dx
+    mov word ptr inputs, ax
+    mov word ptr inputs+2, dx
 
 ; ========== GET RATE (COMPOUND) ==========
 get_rate_c:
@@ -776,8 +776,8 @@ rate_ok_c:
     mov cl, rbuf+1
     lea si, rbuf+2
     call asciiToDigit
-    mov word ptr nm+4, ax
-    mov word ptr nm+6, dx
+    mov word ptr inputs+4, ax
+    mov word ptr inputs+6, dx
 
 ; ========== GET TERM (COMPOUND) ==========
 get_term_c:
@@ -822,8 +822,8 @@ term_ok_c:
     mov cl, tbuf+1
     lea si, tbuf+2
     call asciiToDigit
-    mov word ptr nm+8, ax
-    mov word ptr nm+10, dx
+    mov word ptr inputs+8, ax
+    mov word ptr inputs+10, dx
 
 ; ========== GET COMPOUND FREQUENCY ==========
 get_compound_c:
@@ -868,27 +868,27 @@ compound_ok_c:
     mov cl, cbuf+1
     lea si, cbuf+2
     call asciiToDigit
-    mov word ptr nm+12, ax
-    mov word ptr nm+14, dx
+    mov word ptr inputs+12, ax
+    mov word ptr inputs+14, dx
 
 ; ========== COMPOUND INTEREST CALCULATION ==========
     ; Formula: FV = P * (1 + r/c)^(c*t)
     ; All values scaled by 10000 to handle decimals
     
     ; Calculate c*t (compounding periods)
-    mov ax, word ptr nm+8    ; Get term
-    mov dx, word ptr nm+10
-    mov bx, word ptr nm+12   ; Multiply by compound frequency
+    mov ax, word ptr inputs+8    ; Get term
+    mov dx, word ptr inputs+10
+    mov bx, word ptr inputs+12   ; Multiply by compound frequency
     call multiplier
-    mov word ptr rt, ax      ; Store c*t
-    mov word ptr rt+2, dx
+    mov word ptr temp, ax      ; Store c*t
+    mov word ptr temp+2, dx
 
     ; Calculate (1 + r/c)
-    mov ax, word ptr nm+4    ; Get rate
-    mov dx, word ptr nm+6
+    mov ax, word ptr inputs+4    ; Get rate
+    mov dx, word ptr inputs+6
     mov bx, 100              ; Scale rate
     call multiplier
-    mov bx, word ptr nm+12   ; Divide by c
+    mov bx, word ptr inputs+12   ; Divide by c
     call divider
     mov bx, 10000            ; Add 1 (scaled)
     mov cx, 0
@@ -897,10 +897,10 @@ compound_ok_c:
     ; Calculate (1 + r/c)^(c*t) using loop
     mov bx, ax               ; Store base
     mov cx, bx               ; Copy base
-    mov ax, 10000            ; Start with 1 (scaled)
+    mov ax, 10000            ; Statemp with 1 (scaled)
     
-    mov si, word ptr rt      ; Get c*t (low word)
-    mov di, word ptr rt+2    ; Get c*t (high word)
+    mov si, word ptr temp      ; Get c*t (low word)
+    mov di, word ptr temp+2    ; Get c*t (high word)
 
 exponential_growth:
     mov bx, cx               ; Multiply current result by base
@@ -916,17 +916,17 @@ exponential_growth:
     cmp si, 0
     jne exponential_growth
 
-    mov word ptr rt+4, ax    ; Store (1+r/c)^(c*t)
-    mov word ptr rt+6, dx
+    mov word ptr temp+4, ax    ; Store (1+r/c)^(c*t)
+    mov word ptr temp+6, dx
 
     ; Multiply by principal
-    mov bx, word ptr nm
+    mov bx, word ptr inputs
     call multiplier
     mov bx, 10000
     call divider
 
-    mov word ptr rt+4, ax    ; Store final result
-    mov word ptr rt+6, dx
+    mov word ptr temp+4, ax    ; Store final result
+    mov word ptr temp+6, dx
 
 ; ========== DISPLAY RESULT ==========
     call nl
@@ -937,8 +937,8 @@ exponential_growth:
     mov dx, offset answer_cmp
     int 21h
 
-    mov ax, word ptr rt+4
-    mov dx, word ptr rt+6
+    mov ax, word ptr temp+4
+    mov dx, word ptr temp+6
     call printAXDX
     
     call nl
@@ -953,9 +953,9 @@ asciiToDigit PROC
     xor ax,ax
     xor dx,dx          ; DX:AX = 0
 
-convert:
+convetemp:
     mov bl,[si]
-    sub bl,'0'         ; Convert ASCII to number
+    sub bl,'0'         ; Convetemp ASCII to number
     xor bh,bh          ; BX = digit
 
     ; Multiply current value by 10
@@ -979,7 +979,7 @@ convert:
     adc dx,0
 
     inc si
-    loop convert
+    loop convetemp
     ret
 asciiToDigit ENDP
 
@@ -987,9 +987,9 @@ asciiToDigit ENDP
 printAXDX PROC
     mov bx,10          ; Divisor for decimal conversion
     xor cx,cx          ; Clear counter
-    mov di,si          ; Save buffer start
+    mov di,si          ; Save buffer statemp
 
-convert_loop2:
+convetemp_loop2:
     push ax            ; Save low word
 
     mov ax,dx          ; Process high word
@@ -1006,13 +1006,13 @@ convert_loop2:
     mov dx,bp          ; Rebuild quotient
 
     cmp dx,0
-    jne convert_loop2
+    jne convetemp_loop2
     cmp ax,0
-    jne convert_loop2
+    jne convetemp_loop2
 
 print_loop2:
     pop dx             ; Get digits in reverse order
-    add dl,'0'         ; Convert to ASCII
+    add dl,'0'         ; Convetemp to ASCII
     mov [si],dl
     inc si
     loop print_loop2
@@ -1060,12 +1060,12 @@ multiplier PROC
 
     mov ax,dx          ; Multiply high word first
     mul bx             ; High * BX
-    mov cx,ax          ; Store partial result
+    mov cx,ax          ; Store patempial result
 
     mov ax,si          ; Get low word
     mul bx             ; Low * BX
 
-    add dx,cx          ; Add partial to high part
+    add dx,cx          ; Add patempial to high patemp
 
     pop si
     pop cx
