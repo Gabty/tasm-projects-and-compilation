@@ -1,34 +1,37 @@
-; A semi 32 bit calculator that runs in assembly
+; SEMI 32-BIT INTEREST CALCULATOR
+; ============================================================
+
 .model small
 .stack 100h
 .data
 
-;Header
+; ========== DISPLAY STRINGS ==========
 head db "Interest Calculator",13,10, "$"
 
-;Options Begin
+; ========== MENU OPTIONS ==========
 question db "Options: $"
 options db "1. Future Value of Simple Interest",13,10
         db "2. Future Value of Compounding Interest",13,10
         db "3. Logout$"
 choice db "Choice: $"
 
-;Response on call
+; ========== OPTION HEADERS ==========
 opt1 db "Future Value of Simple Interest$"
 opt2 db "Future Value of Compounding Interest$"
 opt3 db "Logging out...$"
 
-
-;Request user inputs
+; ========== INPUT PROMPTS ==========
 principal_qt db "What is the principal: $"
 rate_qt db "What is the annual interest percentage rate (0-9): $"
 term_qt db "What is the year term (0-99): $"
 compound_qt db "What is the compound frequency (0-9): $"
 answer_cmp db "Future Value: $"
+
+; ========== ERROR MESSAGES ==========
 error_msg db ">>> ERROR: Invalid option! <<<",13,10
           db "Please choose 1, 2, or 3 only.",13,10,"$"
 
-; Login handler
+; ========== LOGIN MESSAGES ==========
 login_prompt db "======= LOGIN REQUIRED =======",13,10
              db " ",13,10
              db "Username: $"
@@ -38,49 +41,40 @@ login_failed db "Invalid credentials! Access denied.",13,10,"$"
 welcome_msg db "Welcome to the Interest Calculator!",13,10,"$"
 try_again db "Press any key to try again...$"
 
-; Input validation messages
+; ========== INPUT VALIDATION MESSAGES ==========
 invalid_input_msg db ">>> ERROR: Invalid input! Please enter a positive number.",13,10,"$"
 empty_input_msg db ">>> ERROR: Input cannot be empty!",13,10,"$"
 space_input_msg db ">>> ERROR: Input cannot be spaces only!",13,10,"$"
 
-; Username/password buffers
-userbuf db 20,0,21 dup(?)  ; 20 char max for username
-passbuf db 20,0,21 dup(?)  ; 20 char max for password
+; ========== INPUT BUFFERS ==========
+userbuf db 20,0,21 dup(?)      ; Username buffer
+passbuf db 20,0,21 dup(?)      ; Password buffer
 
-; Hardcoded credentials
+; ========== HARDCODED CREDENTIALS ==========
 valid_username db "root",0  
 valid_password db "admin",0 
 
+; ========== NUMBER INPUT BUFFERS ==========
+pbuf db 7,0,8 dup(?)    ; Principal buffer (max 7 digits)
+rbuf db 2,0,3 dup(?)    ; Rate buffer (max 2 digits)
+tbuf db 3,0,4 dup(?)    ; Term buffer (max 3 digits)
+cbuf db 3,0,4 dup(?)    ; Compound frequency buffer
 
-; Principal buffer: max 7 chars, actual length, 8 bytes storage: we limit max numbers to avoid overflow
-pbuf db 7,0,8 dup(?)
+; ========== STORAGE VARIABLES ==========
+nm dd ?, ?, ?, ?        ; Stores principal, rate, term, compound
+rt dd ?, ?, ?           ; Runtime storage for calculations
 
-; Rate buffer: max 2 chars (0-99%), actual length, 3 bytes storage
-rbuf db 2,0,3 dup(?)
-
-; Term buffer: max 3 chars (0-99 years), actual length, 4 bytes storage
-tbuf db 3,0,4 dup(?)
-
-; Compound frequency buffer: max 3 chars, actual length, 4 bytes storage
-cbuf db 3,0,4 dup(?)
-
-; Numeric holders: 4 doublewords for principal, rate, term, compound
-nm dd ?, ?, ?, ?
-
-; Runtime storage: 3 doublewords for calculations
-rt dd ?, ?, ?
 .code
 
+; ========== PROGRAM ENTRY POINT ==========
 begin:
     mov ax, @data
     mov ds, ax
 
-    ; Print header (once at startup)
-    call title_header
-    
-    ; REQUIRE LOGIN BEFORE ACCESSING CALCULATOR
-    call login         ; Will loop until successful login
+    call title_header    ; Display program title
+    call login           ; Require login before proceeding
 
+; ========== MAIN MENU LOOP ==========
 mainloop:
     call nl
     mov ah,09h
@@ -97,26 +91,26 @@ mainloop:
     mov dx, offset choice
     int 21h
 
-    mov ah, 01h
+    mov ah, 01h          ; Get user choice (1,2,3)
     int 21h
-    mov bl, al ;no another 21h coz no need to wait for another user input
+    mov bl, al
 
-
-    ;Base if statement
-    cmp bl, '1' ; if entered 1 call simple interest calculator
-    jne compound_block ;jump to next if statement
+    ; ========== MENU SELECTION (IF STATEMENTS) ==========
+    cmp bl, '1'          ; Check for option 1
+    jne compound_block
     jmp simple
 
 compound_block:
-    cmp bl, '2' ; if entered 2 call simple compounding interest calculator
-    jne exit_block ;jump to next if statement
+    cmp bl, '2'          ; Check for option 2
+    jne exit_block
     jmp compound
 
 exit_block:
-    cmp bl, '3' ; if entered 3, logout
+    cmp bl, '3'          ; Check for option 3 (logout)
     jne invalid_choice
     jmp logout
-    
+
+; ========== LOGOUT HANDLER ==========
 logout PROC
     call nl
     mov ah, 09h
@@ -125,15 +119,14 @@ logout PROC
     call nl
     call nl
     
-    ; Clear buffers for next login
-    mov byte ptr [userbuf+1], 0
-    mov byte ptr [passbuf+1], 0
+    mov byte ptr [userbuf+1], 0    ; Clear username buffer
+    mov byte ptr [passbuf+1], 0    ; Clear password buffer
     
-    ; Return to login screen
-    call login
+    call login          ; Return to login screen
     jmp mainloop
 logout ENDP
-    
+
+; ========== INVALID MENU CHOICE HANDLER ==========
 invalid_choice:
     call nl
     mov ah, 09h
@@ -141,24 +134,22 @@ invalid_choice:
     int 21h
     jmp mainloop
 
+; ========== TITLE HEADER DISPLAY ==========
 title_header PROC
-    ; Print top line
     call nl     
     call liner   
     call nl      
 
-    ; Print title
-    mov ah, 09h       ; Set DOS string function
+    mov ah, 09h
     mov dx, offset head
-    int 21h           ; Print "Interest Calculator" + CR+LF
+    int 21h
 
-    ; Print bottom line
     call liner   
     call nl   
 title_header ENDP
 
+; ========== LOGIN SYSTEM ==========
 login PROC
-    ; Save registers
     push ax
     push bx
     push cx
@@ -170,34 +161,27 @@ login_attempt:
     call nl
     call nl
     
-    ; Print login header
     mov ah, 09h
     mov dx, offset login_prompt
     int 21h
     
-    ; Get username
-    mov ah, 0Ah
+    mov ah, 0Ah          ; Get username input
     mov dx, offset userbuf
     int 21h
-
     call nl
     
-    ; Get password (with asterisks)
     mov ah, 09h
     mov dx, offset password_prompt
     int 21h
     
-    ; Custom password input (shows * instead of characters)
-    call get_password
-    
+    call get_password    ; Get password with asterisks
     call nl
     
-    ; Validate credentials
-    call validate_login
-    cmp ax, 1          ; 1 = success, 0 = failure
+    call validate_login  ; Check credentials
+    cmp ax, 1
     je login_successful
     
-    ; LOGIN FAILED - Show error and try again
+    ; ========== LOGIN FAILED HANDLER ==========
     call nl
     mov ah, 09h
     mov dx, offset login_failed
@@ -207,11 +191,10 @@ login_attempt:
     mov dx, offset try_again
     int 21h
     
-    ; Wait for key press
-    mov ah, 01h
+    mov ah, 01h          ; Wait for key press
     int 21h
     
-    jmp login_attempt  ; Try again
+    jmp login_attempt    ; Try again
     
 login_successful:
     call nl
@@ -219,7 +202,6 @@ login_successful:
     mov dx, offset login_success
     int 21h
     
-    ; Restore registers
     pop di
     pop si
     pop dx
@@ -230,7 +212,7 @@ login_successful:
     jmp mainloop              
 login ENDP
 
-; Custom password input (shows *)
+; ========== PASSWORD INPUT WITH ASTERISKS ==========
 get_password PROC
     push ax
     push bx
@@ -238,53 +220,50 @@ get_password PROC
     push dx
     push si
     
-    mov si, offset passbuf+2  ; Where to store password
-    xor cx, cx                 ; Character counter
+    mov si, offset passbuf+2
+    xor cx, cx
     
 get_char:
-    mov ah, 08h                ; DOS function: read without echo
+    mov ah, 08h          ; Read char without echo
     int 21h
     
-    cmp al, 13                 ; Enter key?
+    cmp al, 13           ; Enter key?
     je password_done
     
-    cmp al, 8                  ; Backspace?
+    cmp al, 8            ; Backspace?
     je handle_backspace
     
-    ; Store character
-    mov [si], al
+    mov [si], al         ; Store character
     inc si
     inc cx
     
-    ; Print asterisk
-    mov ah, 02h
+    mov ah, 02h          ; Print asterisk
     mov dl, '*'
     int 21h
     
     jmp get_char
     
 handle_backspace:
-    cmp cx, 0                  ; Nothing to delete?
+    cmp cx, 0
     je get_char
     
     dec si
     dec cx
     
-    ; Move cursor back, print space, move back again
     mov ah, 02h
-    mov dl, 8                  ; Backspace
+    mov dl, 8            ; Backspace
     int 21h
-    mov dl, ' '                ; Space (erase the *)
+    mov dl, ' '
     int 21h
-    mov dl, 8                  ; Backspace again
+    mov dl, 8
     int 21h
     
     jmp get_char
     
 password_done:
-    mov byte ptr [si], 0       ; Null terminate
+    mov byte ptr [si], 0
     mov al, cl
-    mov [passbuf+1], al        ; Store length
+    mov [passbuf+1], al
     
     pop si
     pop dx
@@ -294,40 +273,36 @@ password_done:
     ret
 get_password ENDP
 
-; Validate username and password
+; ========== CREDENTIAL VALIDATION ==========
 validate_login PROC
     push bx
     push cx
     push si
     push di
     
-    ; Clean the input strings first
     lea si, userbuf+2
-    call strip_crlf
+    call strip_crlf      ; Clean username
     
     lea si, passbuf+2
-    call strip_crlf
+    call strip_crlf      ; Clean password
     
-    ; Check username
-    lea si, userbuf+2          ; Entered username
-    lea di, valid_username     ; Valid username
-    call compare_strings
-    cmp ax, 0
-    jne validate_fail          ; Username mismatch
-    
-    ; Check password
-    lea si, passbuf+2          ; Entered password
-    lea di, valid_password     ; Valid password
-    call compare_strings
+    lea si, userbuf+2
+    lea di, valid_username
+    call compare_strings ; Check username
     cmp ax, 0
     jne validate_fail
     
-    ; Login successful
-    mov ax, 1
+    lea si, passbuf+2
+    lea di, valid_password
+    call compare_strings ; Check password
+    cmp ax, 0
+    jne validate_fail
+    
+    mov ax, 1            ; Login success
     jmp validate_done
     
 validate_fail:
-    xor ax, ax                 ; AX = 0 (failure)
+    xor ax, ax           ; Login failed
     
 validate_done:
     pop di
@@ -337,9 +312,7 @@ validate_done:
     ret
 validate_login ENDP
 
-; Compare two null-terminated strings
-; SI = string1, DI = string2
-; Returns AX = 0 if equal, 1 if different
+; ========== STRING COMPARISON (CASE SENSITIVE) ==========
 compare_strings PROC
     push si
     push di
@@ -352,7 +325,7 @@ compare_loop:
     cmp al, bl
     jne strings_different
     
-    cmp al, 0                  ; End of string?
+    cmp al, 0
     je strings_equal
     
     inc si
@@ -364,7 +337,7 @@ strings_different:
     jmp compare_done
     
 strings_equal:
-    xor ax, ax                 ; AX = 0
+    xor ax, ax
     
 compare_done:
     pop cx
@@ -373,25 +346,24 @@ compare_done:
     ret
 compare_strings ENDP
 
-; Strip carriage return and line feed from string
-; SI = string to clean
+; ========== REMOVE CARRIAGE RETURN FROM STRING ==========
 strip_crlf PROC
     push ax
     push si
     
 strip_loop:
     mov al, [si]
-    cmp al, 13        ; Carriage return?
+    cmp al, 13
     je strip_replace
-    cmp al, 10        ; Line feed?
+    cmp al, 10
     je strip_replace
-    cmp al, 0         ; End of string?
+    cmp al, 0
     je strip_done
     inc si
     jmp strip_loop
     
 strip_replace:
-    mov byte ptr [si], 0  ; Replace with null terminator
+    mov byte ptr [si], 0
     
 strip_done:
     pop si
@@ -399,45 +371,37 @@ strip_done:
     ret
 strip_crlf ENDP
 
-; Validate if string contains only digits
-; SI = pointer to string, CL = length
-; Returns AL = 0 if valid, 1 if empty, 2 if invalid chars
+; ========== INPUT VALIDATION (DIGITS ONLY) ==========
 validate_input PROC
     push bx
     push cx
     push si
     
-    ; Check if empty
     cmp cl, 0
     je input_empty
     
-    ; Check for spaces only
     push cx
     push si
     mov ch, 0
 check_spaces:
     mov al, [si]
-    cmp al, ' '        ; Space character
+    cmp al, ' '
     jne has_digits
     inc si
     loop check_spaces
     pop si
     pop cx
-    ; If we get here, all were spaces
     jmp input_spaces
     
 has_digits:
     pop si
     pop cx
     
-    ; Check each character is a digit
     mov ch, 0
     mov bx, si
     
 check_digits:
     mov al, [bx]
-    
-    ; Allow digits 0-9 only
     cmp al, '0'
     jb not_digit
     cmp al, '9'
@@ -446,52 +410,50 @@ check_digits:
     inc bx
     loop check_digits
     
-    ; All characters are digits
     pop si
     pop cx
     pop bx
-    mov al, 0        ; Valid
+    mov al, 0            ; Valid input
     ret
     
 not_digit:
     pop si
     pop cx
     pop bx
-    mov al, 2        ; Contains non-digit
+    mov al, 2            ; Contains non-digit
     ret
     
 input_empty:
     pop si
     pop cx
     pop bx
-    mov al, 1        ; Empty
+    mov al, 1            ; Empty input
     ret
     
 input_spaces:
     pop si
     pop cx
     pop bx
-    mov al, 3        ; Only spaces
+    mov al, 3            ; Only spaces
     ret
 validate_input ENDP
 
+; ========== WELCOME MESSAGE DISPLAY ==========
 welcome_handler PROC
-    ; Print top line
     call nl
     call nl     
     call liner   
     call nl    
 
-    ; Print message
     mov ah, 09h
     mov dx, offset welcome_msg
     int 21h
 
-    ; Print bottom line
     call liner   
 welcome_handler ENDP
 
-nl PROC ; create new line
+; ========== NEW LINE UTILITY ==========
+nl PROC
     mov ah, 02h
     mov dl, 13
     int 21h
@@ -500,7 +462,7 @@ nl PROC ; create new line
     ret
 nl ENDP
 
-;Exiter, ceased to use but maybe in the future so we'll preserve this here
+; ========== PROGRAM EXIT (UNUSED) ==========
 exitapp PROC
     call nl
     mov ah, 09h
@@ -511,20 +473,21 @@ exitapp PROC
     ret
 exitapp ENDP
 
+; ========== SIMPLE INTEREST CALCULATOR ==========
 simple PROC
     call nl
     call nl
     call nl
-    call liner ; liner ============
+    call liner
     call nl
     mov ah, 09h
-    mov dx, offset opt1 ; HEADER
+    mov dx, offset opt1
     int 21h
-    call nl ; NEW LINE
-    call liner ; liner ============
+    call nl
+    call liner
     call nl
 
-    ;PRINCIPAL - WITH VALIDATION
+; ========== GET PRINCIPAL WITH VALIDATION ==========
 get_principal:
     mov ah, 09h
     mov dx, offset principal_qt
@@ -535,7 +498,6 @@ get_principal:
     int 21h
     call nl
     
-    ; Validate principal
     mov cl, pbuf+1
     lea si, pbuf+2
     call validate_input
@@ -547,7 +509,6 @@ get_principal:
     cmp al, 3
     je principal_spaces
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -566,14 +527,13 @@ principal_spaces:
     jmp get_principal
     
 principal_ok:
-    ; Convert principal
     mov cl, pbuf+1
     lea si, pbuf+2
     call asciiToDigit
     mov word ptr nm, ax
     mov word ptr nm+2, dx
 
-    ;RATE - WITH VALIDATION
+; ========== GET RATE WITH VALIDATION ==========
 get_rate:
     mov ah, 09h
     mov dx, offset rate_qt
@@ -584,7 +544,6 @@ get_rate:
     int 21h
     call nl
     
-    ; Validate rate
     mov cl, rbuf+1
     lea si, rbuf+2
     call validate_input
@@ -596,7 +555,6 @@ get_rate:
     cmp al, 3
     je rate_spaces
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -615,14 +573,13 @@ rate_spaces:
     jmp get_rate
     
 rate_ok:
-    ; Convert rate
     mov cl, rbuf+1
     lea si, rbuf+2
     call asciiToDigit
     mov word ptr nm+4, ax
     mov word ptr nm+6, dx
 
-    ; TERM - WITH VALIDATION
+; ========== GET TERM WITH VALIDATION ==========
 get_term:
     mov ah, 09h
     mov dx, offset term_qt
@@ -633,7 +590,6 @@ get_term:
     int 21h
     call nl
     
-    ; Validate term
     mov cl, tbuf+1
     lea si, tbuf+2
     call validate_input
@@ -645,7 +601,6 @@ get_term:
     cmp al, 3
     je term_spaces
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -664,46 +619,42 @@ term_spaces:
     jmp get_term
     
 term_ok:
-    ; Convert term
     mov cl, tbuf+1
     lea si, tbuf+2
     call asciiToDigit
     mov word ptr nm+8, ax
     mov word ptr nm+10, dx
 
-    ; process - scaling rate in 100
-    ; getting Rate x Time
+; ========== SIMPLE INTEREST CALCULATION ==========
+    ; Formula: FV = P * (1 + RT)
+    ; All values scaled by 10000 to handle decimals
     
-    ; get the ax, dx of rate
-    mov ax, word ptr nm+4 ; lower bit
-    mov dx, word ptr nm+6 ; higher bit
-    mov bx, 100 ; scaler
-    call multiplier; rate is now scaled; output = Rate*100
+    mov ax, word ptr nm+4    ; Get rate
+    mov dx, word ptr nm+6
+    mov bx, 100              ; Scale rate
+    call multiplier
     
-    mov bx, word ptr nm+8
-    call multiplier ; multiply it with time; output = Rate*100*Time
+    mov bx, word ptr nm+8    ; Multiply by term
+    call multiplier
     
-    mov bx, 10000
-    call adder ; add 100 ; output = 100 + Rate*100*Time
+    mov bx, 10000            ; Add 1 (scaled as 10000)
+    call adder
 
-    ; saving the output = 100 + Rate*100*Time in rt
-    mov word ptr rt, ax
+    mov word ptr rt, ax      ; Store (10000 + Rate*100*Term)
     mov word ptr rt+2, dx
 
-    ; load principal
-    mov ax, word ptr nm
+    mov ax, word ptr nm      ; Get principal
     mov dx, word ptr nm+2
 
-    mov bx, word ptr rt ; load the (1+rt) scaled to 100
-    call multiplier ; output = P(100+100RT)
-    mov bx,10000
-    call divider ; remove the scaler and return to normal
+    mov bx, word ptr rt      ; Multiply principal * (10000 + ...)
+    call multiplier
+    mov bx, 10000            ; Divide to remove scaling
+    call divider
 
-    ;save it in rt+4
-    mov word ptr rt+4, ax
+    mov word ptr rt+4, ax    ; Store final result
     mov word ptr rt+6, dx
 
-    ; outputting now
+; ========== DISPLAY RESULT ==========
     call nl
     call liner
     call nl
@@ -714,28 +665,29 @@ term_ok:
 
     mov ax, word ptr rt+4
     mov dx, word ptr rt+6
-
     call printAXDX
+    
     call nl
     call liner
     call nl
     jmp mainloop
 simple ENDP
 
+; ========== COMPOUND INTEREST CALCULATOR ==========
 compound PROC
     call nl
     call nl
     call nl
-    call liner ; liner ============
+    call liner
     call nl
     mov ah, 09h
     mov dx, offset opt2
     int 21h
     call nl
-    call liner ; liner ============
+    call liner
     call nl
     
-    ; PRINCIPAL - WITH VALIDATION
+; ========== GET PRINCIPAL (COMPOUND) ==========
 get_principal_c:
     mov ah, 09h
     mov dx, offset principal_qt
@@ -746,7 +698,6 @@ get_principal_c:
     int 21h
     call nl
     
-    ; Validate principal
     mov cl, pbuf+1
     lea si, pbuf+2
     call validate_input
@@ -758,7 +709,6 @@ get_principal_c:
     cmp al, 3
     je principal_spaces_c
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -777,14 +727,13 @@ principal_spaces_c:
     jmp get_principal_c
     
 principal_ok_c:
-    ; Convert principal
     mov cl, pbuf+1
     lea si, pbuf+2
     call asciiToDigit
     mov word ptr nm, ax
     mov word ptr nm+2, dx
 
-    ; RATE - WITH VALIDATION
+; ========== GET RATE (COMPOUND) ==========
 get_rate_c:
     mov ah, 09h
     mov dx, offset rate_qt
@@ -795,7 +744,6 @@ get_rate_c:
     int 21h
     call nl
     
-    ; Validate rate
     mov cl, rbuf+1
     lea si, rbuf+2
     call validate_input
@@ -807,7 +755,6 @@ get_rate_c:
     cmp al, 3
     je rate_spaces_c
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -826,14 +773,13 @@ rate_spaces_c:
     jmp get_rate_c
     
 rate_ok_c:
-    ; Convert rate
     mov cl, rbuf+1
     lea si, rbuf+2
     call asciiToDigit
     mov word ptr nm+4, ax
     mov word ptr nm+6, dx
 
-    ; TERM - WITH VALIDATION
+; ========== GET TERM (COMPOUND) ==========
 get_term_c:
     mov ah, 09h
     mov dx, offset term_qt
@@ -844,7 +790,6 @@ get_term_c:
     int 21h
     call nl
     
-    ; Validate term
     mov cl, tbuf+1
     lea si, tbuf+2
     call validate_input
@@ -856,7 +801,6 @@ get_term_c:
     cmp al, 3
     je term_spaces_c
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -875,14 +819,13 @@ term_spaces_c:
     jmp get_term_c
     
 term_ok_c:
-    ; Convert term
     mov cl, tbuf+1
     lea si, tbuf+2
     call asciiToDigit
     mov word ptr nm+8, ax
     mov word ptr nm+10, dx
 
-    ; COMPOUND FREQUENCY - WITH VALIDATION
+; ========== GET COMPOUND FREQUENCY ==========
 get_compound_c:
     mov ah, 09h
     mov dx, offset compound_qt
@@ -893,7 +836,6 @@ get_compound_c:
     int 21h
     call nl
     
-    ; Validate compound frequency
     mov cl, cbuf+1
     lea si, cbuf+2
     call validate_input
@@ -905,7 +847,6 @@ get_compound_c:
     cmp al, 3
     je compound_spaces_c
     
-    ; Invalid characters
     mov ah, 09h
     mov dx, offset invalid_input_msg
     int 21h
@@ -924,153 +865,145 @@ compound_spaces_c:
     jmp get_compound_c
     
 compound_ok_c:
-    ; Convert compound frequency
     mov cl, cbuf+1
     lea si, cbuf+2
     call asciiToDigit
     mov word ptr nm+12, ax
     mov word ptr nm+14, dx
 
-    ; get term * compounding
-    mov ax, word ptr nm+8 ; ax = time
-    mov dx, word ptr nm+10 ; ax = time
-    mov bx, word ptr nm+12
+; ========== COMPOUND INTEREST CALCULATION ==========
+    ; Formula: FV = P * (1 + r/n)^(n*t)
+    ; All values scaled by 10000 to handle decimals
+    
+    ; Calculate n*t (compounding periods)
+    mov ax, word ptr nm+8    ; Get term
+    mov dx, word ptr nm+10
+    mov bx, word ptr nm+12   ; Multiply by compound frequency
     call multiplier
-    ; store the output
+    mov word ptr rt, ax      ; Store n*t
+    mov word ptr rt+2, dx
 
-    mov word ptr rt, ax ; store ct lower bit
-    mov word ptr rt+2, dx ; store ct higher bit
-
-    ; P (1+i/c) ^ct
-    mov ax, word ptr nm+4 ; get rate
-    mov dx, word ptr nm+6 ; get rate
-    mov bx, 100
+    ; Calculate (1 + r/n)
+    mov ax, word ptr nm+4    ; Get rate
+    mov dx, word ptr nm+6
+    mov bx, 100              ; Scale rate
     call multiplier
-
-    mov bx, word ptr nm+12
+    mov bx, word ptr nm+12   ; Divide by n
     call divider
+    mov bx, 10000            ; Add 1 (scaled)
+    mov cx, 0
+    call adder
 
-    mov bx, 10000  ;this is 1 in formula but scaled by 10000
-    mov cx, 0 ; 0 as bx is only 10000
-    call adder; adder uses cx:bx and
-
-    mov bx,ax ; store the current result to bx to used in multiplier
-
-    mov cx, bx ; store a copy of current result
-    mov ax,10000 ; new base
-
-    mov si, word ptr rt ; get (C)(T)
-    mov di, word ptr rt+2
+    ; Calculate (1 + r/n)^(n*t) using loop
+    mov bx, ax               ; Store base
+    mov cx, bx               ; Copy base
+    mov ax, 10000            ; Start with 1 (scaled)
+    
+    mov si, word ptr rt      ; Get n*t (low word)
+    mov di, word ptr rt+2    ; Get n*t (high word)
 
 exponential_growth:
-    ; 32-bit multiply
-    mov bx, cx
-    call multiplier ; base * result
+    mov bx, cx               ; Multiply current result by base
+    call multiplier
+    mov bx, 10000            ; Divide to keep scaling
+    call divider
 
-    mov bx,10000
-    call divider ; (base*result) / 10000 returns a new result
-    ; --------------------------------
+    sub si, 1                ; Decrement counter
+    sbb di, 0
 
-    sub si,1
-    sbb di,0
-
-    cmp di,0
+    cmp di, 0
     jne exponential_growth
-    cmp si,0
+    cmp si, 0
     jne exponential_growth
 
-    mov word ptr rt+4, ax; store (1+i/c)^ct for other use lower bit
-    mov word ptr rt+6, dx; store (1+i/c)^ct for other use higher bit
+    mov word ptr rt+4, ax    ; Store (1+r/n)^(n*t)
+    mov word ptr rt+6, dx
 
-    mov bx, word ptr nm 
-    call multiplier; multiply it by principal
+    ; Multiply by principal
+    mov bx, word ptr nm
+    call multiplier
     mov bx, 10000
-    call divider ; remove the scale
+    call divider
 
-    mov word ptr rt+4, ax 
-    mov word ptr rt+6, dx ; store it first so printing cliner and answer_cmp can use it
+    mov word ptr rt+4, ax    ; Store final result
+    mov word ptr rt+6, dx
 
+; ========== DISPLAY RESULT ==========
     call nl
-    call liner ; LINE -------------
+    call liner
     call nl 
 
     mov ah, 09h
-    mov dx, offset answer_cmp ; moving dx to offset answer_cmp
-
+    mov dx, offset answer_cmp
     int 21h
-    ; restore the dx:ax
+
     mov ax, word ptr rt+4
     mov dx, word ptr rt+6
-
     call printAXDX
+    
     call nl
-    call liner ; LINE -------------
+    call liner
     call nl
     
     jmp mainloop
 compound ENDP
 
-
-; returns ax as digit (32 bit)
+; ========== ASCII TO 32-BIT INTEGER CONVERTER ==========
 asciiToDigit PROC
     xor ax,ax
     xor dx,dx          ; DX:AX = 0
 
 convert:
     mov bl,[si]
-    sub bl,'0'
+    sub bl,'0'         ; Convert ASCII to number
     xor bh,bh          ; BX = digit
 
-    ; save current value
-    mov bp,ax
+    ; Multiply current value by 10
+    mov bp,ax          ; Save current value
     mov di,dx
 
-    ; DX:AX = value * 2
-    shl ax,1
+    shl ax,1           ; Value * 2
     rcl dx,1
 
-    ; BP:DI = value * 8
-    shl bp,1
+    shl bp,1           ; Value * 8
     rcl di,1
     shl bp,1
     rcl di,1
     shl bp,1
     rcl di,1
 
-    ; DX:AX = value * 10
-    add ax,bp
+    add ax,bp          ; Value * 10
     adc dx,di
 
-    ; add digit
-    add ax,bx
+    add ax,bx          ; Add digit
     adc dx,0
 
     inc si
     loop convert
     ret
 asciiToDigit ENDP
-;print ax and dx (32bit)
+
+; ========== 32-BIT NUMBER DISPLAY ==========
 printAXDX PROC
-    mov bx,10   ; divisor for operation
-    xor cx,cx   ;clear cx
-    mov di,si   ; save buffer start
+    mov bx,10          ; Divisor for decimal conversion
+    xor cx,cx          ; Clear counter
+    mov di,si          ; Save buffer start
 
 convert_loop2:
-    push ax     ; save low word
+    push ax            ; Save low word
 
-    mov ax,dx
+    mov ax,dx          ; Process high word
     xor dx,dx
-    div bx      ; divide high word by 10 (bx)
+    div bx
+    mov bp,ax          ; Save high quotient
+    pop ax             ; Restore low word
 
-    mov bp,ax   ; save high quotient
-    pop ax      ; restore low word
+    div bx             ; Divide low word
 
-    div bx      ; divide low word by 10 (bx)
+    push dx            ; Save remainder
+    inc cx
 
-    push dx     ; save remainder
-    inc cx      ; increment counter
-
-    mov dx,bp   ; rebuild DX:AX quotient
+    mov dx,bp          ; Rebuild quotient
 
     cmp dx,0
     jne convert_loop2
@@ -1078,77 +1011,77 @@ convert_loop2:
     jne convert_loop2
 
 print_loop2:
-    pop dx              ; get the remainder in reverse order
-    add dl,'0'          ;convert to ascii
-    mov [si],dl         ; store in buffer
+    pop dx             ; Get digits in reverse order
+    add dl,'0'         ; Convert to ASCII
+    mov [si],dl
     inc si
-    loop print_loop2    ; repeat for all digits
+    loop print_loop2
 
-    mov byte ptr [si],'$'   ; place terminator
+    mov byte ptr [si],'$'   ; String terminator
 
-    mov dx,di       ; point to start of string
+    mov dx,di          ; Print string
     mov ah,09h
-    int 21h         ; print the string
+    int 21h
     ret
 printAXDX ENDP
-;32 bit divider usage (dx:ax) / bx
+
+; ========== 32-BIT DIVISION HANDLER ==========
+; Divides DX:AX by BX, returns result in DX:AX
 divider PROC
-    ;save registers
     push bx
     push cx
     push bp
 
-    push ax   ; save low word
+    push ax            ; Save low word
 
-    mov ax,dx   ; move high to ax
-    xor dx,dx   ; remove value of dx
-    div bx      ; divide high word by bx
-                ; AX = high quotient
-                ; DX = remainder
+    mov ax,dx          ; Move high word to AX
+    xor dx,dx          ; Clear DX
+    div bx             ; Divide high word
+    mov bp,ax          ; Save high quotient
+    pop ax             ; Restore low word
 
-    mov bp,ax   ; store high quotient in bp
-    pop ax      ; restore low word
+    div bx             ; Divide low word with remainder
 
-    div bx      ; divide low with remainder
+    mov dx,bp          ; Combine result
 
-    mov dx,bp   ; combine the result
-    ; restore the registers then return
     pop bp
     pop cx
     pop bx
     ret
-
 divider ENDP
-; 32 bit multiplier usage (dx:ax) * bx; returns new dx:ax
+
+; ========== 32-BIT MULTIPLICATION HANDLER ==========
+; Multiplies DX:AX by BX, returns result in DX:AX
 multiplier PROC
-    ; preserve the content
     push cx 
     push si
-    ; save low word
-    mov si,ax        
+    
+    mov si,ax          ; Save low word
 
-    mov ax,dx   ; mov high first to mul
-    mul bx      ; high * BX
-    mov cx,ax   ; store partial
+    mov ax,dx          ; Multiply high word first
+    mul bx             ; High * BX
+    mov cx,ax          ; Store partial result
 
-    mov ax,si   ; get the low word
-    mul bx      ; low * BX
+    mov ax,si          ; Get low word
+    mul bx             ; Low * BX
 
-    add dx,cx   ; add partial to high part
-    ; restore registers then return
+    add dx,cx          ; Add partial to high part
+
     pop si
     pop cx
     ret
 multiplier ENDP
-; 32 bit adder usage (dx:ax) + (cx:bx)
+
+; ========== 32-BIT ADDITION HANDLER ==========
+; Adds CX:BX to DX:AX, returns result in DX:AX
 adder PROC
-
-    add ax,bx ; add bx and store to ax
-    adc dx,cx ; add cx and store dx
-
+    add ax,bx          ; Add low words
+    adc dx,cx          ; Add high words with carry
     ret
 adder ENDP
-; this creates 205 char for 50 times
+
+; ========== LINE DISPLAY UTILITY ==========
+; Prints 205 characters (extended ASCII line)
 liner PROC
     mov cx,50
 line:
