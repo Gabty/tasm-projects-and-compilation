@@ -3,6 +3,7 @@
 A 32-bit compound and simple interest calculator written in Turbo Assembler (TASM) for DOS.
 
 ## Features
+- 8086 Processor
 - Simple Interest Calculation
 - Compound Interest Calculation
 - Login System (Username: root, Password: admin)
